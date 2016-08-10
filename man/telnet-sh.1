@@ -1,0 +1,71 @@
+.TH TELNET-SH "1" "August 2016" "Live never ending Tale" "Utilities"
+.SH NAME
+.B telnet-sh
+\- client for telnet that provides automatization
+.SH SYNOPSIS
+.B telnet-sh
+[\fI\,OPTION\/\fR]... \fI\,HOST \/\fR[\fI\,PORT/SERVICE\/\fR]
+.SH DESCRIPTION
+.PP
+The telnet utility communicates with another host using the
+TELNET protocol.
+.PP
+This is a tiny implementation of telnet written in Bash,
+that provides automatization via scripts of commands,
+it's suitable to perform a communication session
+without the user intervention.
+This utility has a limited set of commands,
+some protocol commands, like OPEN, are not implemented;
+so the host name must be specified in the command line.
+Scripts  may use environment variables.
+Variables TUSER and TPASS are set by the corresponding options.
+.SH OPTIONS
+.PP
+.TP
+\fB\-a\fR
+Automatic login with $USER variable
+.TP
+\fB\-b\fR
+Batch mode, script required, will not watch for input from terminal,
+automatic switch to batch mode when stdin is not a terminal
+.TP
+\fB\-c\fR script
+Execute commands from this file before going interactive,
+reads script from stdin when filename is '-' or stdin is not a terminal
+.TP
+\fB\-l\fR TUSER
+Automatic login as TUSER
+.TP
+\fB\-p\fR TPASS
+TUSER password
+.TP
+\fB\-s\fR
+silent run, don't write output to /dev/stdout
+.PP
+.SH SCRIPT COMMANDS
+.PP
+An script of commands is a text file that contains a command in every line.
+May use environment variables,
+TUSER and TPASS have been set by application options.
+Comment lines using a starting # character.
+.PP
+.TP
+\fBsilent/nosilent\fR
+command to disable of enable writing to stdout
+.TP
+\fBexpect\fR "string waiting for" "answer"
+expect an string and send the answer
+.TP
+\fBinteractive\fR
+stops the script,
+enables terminal keyboard if batch mode is not enabled.
+.SH AUTHOR
+Written by Jordi Pujol Palomer.
+.SH "REPORTING BUGS"
+Jordi Pujol Palomer <jordipujolp@gmail.com>
+.SH COPYRIGHT
+Copyright \(co 2016 Jordi Pujol Palomer
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>.
+.br
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.

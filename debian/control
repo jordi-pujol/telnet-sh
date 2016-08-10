@@ -1,0 +1,12 @@
+Source: telnet-sh
+Section: misc
+Priority: optional
+Maintainer: Jordi Pujol Palomer <jordipujolp@gmail.com>
+Build-Depends: debhelper (>= 9),
+Standards-Version: 3.8.0
+Homepage: http://livenet.ddns.net/
+
+Package: telnet-sh
+Architecture: all
+Depends: ${misc:Depends}, bash,
+Description: Telnet client that provides automatization.

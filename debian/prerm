@@ -1,0 +1,14 @@
+#!/bin/sh
+
+case "${1:-}" in
+remove|deconfigure)
+	if update-alternatives --remove telnet /usr/bin/telnet-sh 2>&1; then
+		ls -L /etc/alternatives/telnet > /dev/null 2>&1 || \
+			update-alternatives --auto telnet
+	fi
+	;;
+upgrade|failed-upgrade)
+	: ;;
+esac
+
+#DEBHELPER#

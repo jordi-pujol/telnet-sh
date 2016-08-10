@@ -1,0 +1,12 @@
+#!/bin/sh
+
+case "${1:-}" in
+configure)
+	update-alternatives --install /usr/bin/telnet telnet /usr/bin/telnet-sh 50 \
+		--slave /usr/share/man/man1/telnet.1.gz telnet.1.gz \
+		/usr/share/man/man1/telnet-sh.1.gz
+	ls -L /etc/alternatives/telnet > /dev/null 2>&1 || \
+		update-alternatives --auto telnet
+esac
+
+#DEBHELPER#

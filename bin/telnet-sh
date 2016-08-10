@@ -1,0 +1,274 @@
+#!/bin/bash
+
+#  Telnet client that provides automatization.
+#  $Revision: 0.2 $
+#
+#  Copyright (C) 2014-2016 Jordi Pujol Palomer <jordipujolp AT gmail DOT com>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 1, or (at your option)
+#  any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#
+#  Please report bugs to <jordipujolp AT gmail DOT com>.
+#
+#************************************************************************
+
+# Requires:
+# - bash, enabled for tcp communications
+# Other GNU utilities, even reduced versions from busybox will work
+# - awk
+# - tr
+# - sed
+
+#DEBUG="y"
+if [ -n "${DEBUG}" ]; then
+	export PS4='+\t ${LINENO}:${FUNCNAME:+"${FUNCNAME}:"} '
+	exec {BASH_XTRACEFD}> "$(mktemp /tmp/telnet-sh-XXXXXX.txt)"
+	set -x
+fi
+
+version="0.2"
+
+usage() {
+	echo "telnet-sh v${version}.
+
+Usage: telnet-sh [-a] [-b] [-c script] [-l TUSER] [-p TPASS] [-s] HOST [PORT/SERVICE]
+
+Connect to a telnet server.
+Communication may be automatized with a script of commands.
+This script has a limited set of commands that may use environment variables.
+Variables TUSER and TPASS are set by the corresponding options.
+
+	-a	Automatic login with \$USER variable
+	-b	Batch mode, script required, will not watch for input from terminal,
+		automatic switch to batch mode when stdin is not a terminal
+	-c script	Execute commands from this file before going interactive,
+		reads script from stdin when filename is '-' or stdin is not a terminal
+	-l TUSER	Automatic login as TUSER
+	-p TPASS	TUSER password
+	-s	silent run, don't write output to /dev/stdout" >&2
+	:
+}
+
+_printf_printable() {
+	printf '%s' "${1}" | tr -cd '[ -~]\n\r\t\b\033'
+}
+
+_kbd() {
+	local a
+	while kill -0 ${pid_comms} 2>/dev/null; do
+		if IFS= read -s -u0 -d $'\0' -n 1 -t 1 a && \
+		[ ! -e "${KBDDIS}" ]; then
+			printf '%s' "${a}" 1>&${fdh}
+		fi
+	done
+}
+
+_comms() {
+	local a
+	local line lines
+	local timeout expect send
+	local timeout_short timeout_long buffer
+
+expect=""
+line=0
+timeout_short=5
+timeout_long=600
+buffer=""
+
+expect() {
+	expect=${1}
+	send=${2}
+}
+
+_read_cmd() {
+	local cmd
+	expect=""; send=""
+	while [ ${line} -lt ${lines} ]; do
+		line=$((${line}+1))
+		cmd="$(awk -v line=${line} 'NR == line && $1 {print $1; rc=-1; exit}
+		END{exit rc+1}' "${SCRIPT}")" || continue
+		case "${cmd}" in
+		expect) eval $(sed -ne "${line}p" "${SCRIPT}")
+			return 0
+			;;
+		silent) SILENT="y";;
+		nosilent) SILENT="";;
+		interactive)
+			if [ -z "${BATCH}" ]; then
+				printf '\nscript: switching to interactive mode.\n' >&2
+			else
+				printf '\nscript: stopped.\n' >&2
+			fi
+			_printf_printable "${buffer}"
+			return 0
+			;;
+		\#*) :;;
+		*)
+			printf '\nscript error: invalid command "%s".\n' "${cmd}" >&2
+			[  -n "${BATCH}" ] || \
+				printf 'Switching to interactive mode.\n' >&2
+			_printf_printable "${buffer}"
+			return 0
+			;;
+		esac
+	done
+	:
+}
+
+	if [ -n "${SCRIPT}" ]; then
+		lines="$(wc -l "${SCRIPT}" | awk '{print $1}')"
+		_read_cmd
+	fi
+
+	while :; do
+		if [ -n "${expect}" -o -n "${BATCH}" ]; then
+			timeout=${timeout_short}
+		else
+			timeout=${timeout_long}
+			[ ! -e "${KBDDIS}" ] || rm -f "${KBDDIS}"
+		fi
+		if IFS= read -u${fdh} -d $'\0' -n 1 -t ${timeout} a; then
+			buffer+="${a}"
+			[ -n "${SILENT}" ] || _printf_printable "${a}"
+			if [ -n "${expect}" ]; then
+				case "${buffer}" in
+				*"${expect}")
+					[ -z "${send}" ] || printf "${send}" 1>&${fdh}
+					_read_cmd
+					;;
+				esac
+			fi
+			if [ "$a" = $'\n' ]; then
+				buffer=""
+			fi
+		else
+			printf '\n' >&2
+			if [ -n "${expect}" ]; then
+				printf 'Warning: Timeout while expecting "%s"\n' "${expect}" >&2
+				expect=""
+				if [  -z "${BATCH}" ]; then
+					printf 'Switching to interactive mode.\n' >&2
+					_printf_printable "${buffer}"
+					continue
+				fi
+			fi
+			[ -z "${BATCH}" ] || \
+				printf 'Batch mode, ending session.\n' >&2
+			break
+		fi
+	done
+
+	printf '\n'
+}
+
+AUTOLOGIN=""
+BATCH=""
+KBDDIS=""
+SCRIPT=""
+SCRIPT_STDIN=""
+TUSER=""
+TPASS=""
+SILENT=""
+
+_exit() {
+	[ ! -e "${KBDDIS}" ] || rm -f "${KBDDIS}"
+	[ -z "${SCRIPT_STDIN}" ] || rm -f "${SCRIPT}"
+}
+trap _exit EXIT
+
+while getopts ":abc:l:p:s" OPTION; do
+	case $OPTION in
+		a) AUTOLOGIN="y";;
+		b) BATCH="y";;
+		c) SCRIPT="${OPTARG}";;
+		l) TUSER="${OPTARG}";;
+		p) TPASS="${OPTARG}";;
+		s) SILENT="y";;
+	esac
+done
+shift $((OPTIND-1))
+host="${1:-}"
+if [ -z "${host}" ]; then
+	usage
+	exit 1
+fi
+shift
+port=""
+if [ -n "${1:-}" ]; then
+	port="$(awk -v service="${1}" '$1 == service && \
+	$2 ~ "/tcp" {print service; rc=-1; exit}
+	END{exit rc+1}' /etc/services)" || \
+		port="$(awk -v port="${1}" \
+			'BEGIN{if (port ~ "^[0-9]+$") print port+0}')"
+else
+	port="telnet"
+fi
+if [ -z "${port}" ]; then
+	printf 'Error: Invalid port or service name.\n' >&2
+	exit 1
+fi
+
+if [ -z "${TUSER}" -a -n "${AUTOLOGIN}" -a -n "${USER}" ]; then
+	TUSER="${USER}"
+fi
+
+if [ -t 0 ]; then
+	:
+else
+	if [ "${SCRIPT}" = "-" -o -z "${SCRIPT}" ]; then
+		printf 'Warning: Reading script from stdin.\n' >&2
+		SCRIPT="$(mktemp /tmp/telnet-sh-XXXXXX.txt)"
+		cat -s - > "${SCRIPT}" <&0
+		SCRIPT_STDIN="y"
+	fi
+	if [ -z "${BATCH}" ]; then
+		printf 'Warning: stdin is not a terminal. Setting BATCH mode.\n' >&2
+		BATCH="y"
+	fi
+fi
+
+if [ ! -s "${SCRIPT}" ]; then
+	printf 'Error: Invalid script file %s.\n' "${SCRIPT_STDIN:-"${SCRIPT}"}" >&2
+	exit 1
+fi
+
+if [ -n "${SCRIPT_STDIN}" -a -z "${BATCH}" ]; then
+	printf 'Warning: reading input from stdin. Setting BATCH mode.\n' >&2
+	BATCH="y"
+fi
+
+if [ ! -s "${SCRIPT}" -a -n "${BATCH}" ]; then
+	printf 'Error: BATCH mode is enabled and no script specified.\n' >&2
+	exit 1
+fi
+
+printf 'Connecting to host %s in port %s.\n' "${host}" "${port}" >&2
+if ! exec {fdh}<>"/dev/tcp/$host/$port"; then
+	printf 'Error: No success on connection.\n' >&2
+	exit 1
+fi
+
+if [ -t 0 ]; then
+	KBDDIS="$(mktemp /var/lock/telnet-sh-XXXXXX)"
+fi
+
+_comms &
+pid_comms="${!}"
+
+if [ -t 0 ]; then
+	_kbd <&0 &
+fi
+
+wait > /dev/null 2>&1
+:

@@ -1,0 +1,16 @@
+telnet-sh (0.2) unstable; urgency=low
+
+  * Unicode printable character set.
+    _printf_printable() {
+        #printf '%s' "${1}" | tr -cd '[:print:]\n\r\t\b\033'
+        #printf '%s' "${1}" | cat -v | sed -re '\|\^M| s|||g'
+        printf '%s' "${1}" | tr -cd '[ -~]\n\r\t\b\033'
+    }
+
+ -- Jordi Pujol Palomer <jordipujolp@gmail.com>  Mon, 08 Aug 2016 14:36:36 +0200
+
+telnet-sh (0.1) unstable; urgency=low
+
+  * initial version.
+
+ -- Jordi Pujol Palomer <jordipujolp@gmail.com>  Mon, 18 Jan 2016 13:24:35 +0100

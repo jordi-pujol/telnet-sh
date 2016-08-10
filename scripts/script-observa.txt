@@ -1,0 +1,22 @@
+# telnet-sh - script of commands.
+#
+# may use environment variables;
+# TUSER and TPASS have been set by application options.
+
+# command to not write to stdout
+#silent
+#nosilent
+
+# expect command syntax:
+#    expect "string waiting for" "answer"
+expect 'username:' "$TUSER\n"
+expect 'password:' "$TPASS\n"
+
+#expect 'TBS>>' 'reboot\n'
+
+# "interactive" stops the script,
+# enables terminal keyboard if batch mode is not enabled.
+interactive
+
+#expect 'TBS>>' 'exit\n'
+#expect 'Are you sure to logout? Y/N[N]:' Y
