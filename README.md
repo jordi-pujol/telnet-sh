@@ -27,8 +27,7 @@ Examples:
 Open a telnet session on host 192.168.1.1 and execute the script file 
 in batch mode, also write a bash trace in directory /tmp:
 
-export DEBUG=y; telnet -b -l tuser -p tpass \
-	-c scripts/script-observa.txt 192.168.1.1
+export DEBUG=y; telnet -b -l tuser -p tpass -c scripts/script-observa.txt 192.168.1.1
 
 Following is a sample script to reboot a Telecom Observa router:
 
@@ -40,8 +39,7 @@ expect 'Are you sure to logout? Y/N[N]:' Y
 
 Open a pop3 session on a mail server:
 
-telnet -l tuser -p tpass \
-	-c scripts/script-pop3.txt mail.host.net pop3
+telnet -l tuser -p tpass -c scripts/script-pop3.txt mail.host.net pop3
 
 Sample script to init a pop3 session and after give control to the 
 user:
