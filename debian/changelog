@@ -1,11 +1,16 @@
+telnet-sh (0.3) unstable; urgency=medium
+
+  * option -d
+    dump input stream to a temp file.
+  * tested for reduced busybox versions of some GNU utilities.
+  * synchronize keyboard reading process by checking another active
+    subprocess.
+
+ -- Jordi Pujol Palomer <jordipujolp@gmail.com>  Thu, 11 Aug 2016 19:31:39 +0200
+
 telnet-sh (0.2) unstable; urgency=low
 
-  * Unicode printable character set.
-    _printf_printable() {
-        #printf '%s' "${1}" | tr -cd '[:print:]\n\r\t\b\033'
-        #printf '%s' "${1}" | cat -v | sed -re '\|\^M| s|||g'
-        printf '%s' "${1}" | tr -cd '[ -~]\n\r\t\b\033'
-    }
+  * Unicode printable character set compatible with Busybox tr.
 
  -- Jordi Pujol Palomer <jordipujolp@gmail.com>  Mon, 08 Aug 2016 14:36:36 +0200
 

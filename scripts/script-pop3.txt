@@ -9,14 +9,9 @@
 
 # expect command syntax:
 #    expect "string waiting for" "answer"
-expect "username:" "$TUSER\n"
-expect "password:" "$TPASS\n"
-
-#expect "TBS>>" "reboot\n"
+expect '+OK POP3 PROXY server ready\n' "user $TUSER\n"
+expect '+OK Password required\n' "pass $TPASS\n"
 
 # "interactive" stops the script,
 # enables terminal keyboard if batch mode is not enabled.
 interactive
-
-#expect "TBS>>" "exit\n"
-#expect "Are you sure to logout? Y/N[N]:" Y

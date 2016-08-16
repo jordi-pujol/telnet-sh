@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #  Telnet client that provides automatization.
-#  $Revision: 0.2 $
+#  $Revision: 0.3 $
 #
 #  Copyright (C) 2014-2016 Jordi Pujol Palomer <jordipujolp AT gmail DOT com>
 #
@@ -27,22 +27,23 @@
 # - bash, enabled for tcp communications
 # Other GNU utilities, even reduced versions from busybox will work
 # - awk
-# - tr
+# - cat
 # - sed
+# - tr
 
 #DEBUG="y"
 if [ -n "${DEBUG}" ]; then
 	export PS4='+\t ${LINENO}:${FUNCNAME:+"${FUNCNAME}:"} '
-	exec {BASH_XTRACEFD}> "$(mktemp /tmp/telnet-sh-XXXXXX.txt)"
+	exec {BASH_XTRACEFD}> "$(mktemp /tmp/telnet-sh-XXXXXX)"
 	set -x
 fi
 
-version="0.2"
+version="0.3"
 
 usage() {
 	echo "telnet-sh v${version}.
 
-Usage: telnet-sh [-a] [-b] [-c script] [-l TUSER] [-p TPASS] [-s] HOST [PORT/SERVICE]
+Usage: telnet-sh [-a] [-b] [-c script] [-d] [-l TUSER] [-p TPASS] [-s] HOST [PORT/SERVICE]
 
 Connect to a telnet server.
 Communication may be automatized with a script of commands.
@@ -54,6 +55,7 @@ Variables TUSER and TPASS are set by the corresponding options.
 		automatic switch to batch mode when stdin is not a terminal
 	-c script	Execute commands from this file before going interactive,
 		reads script from stdin when filename is '-' or stdin is not a terminal
+	-d	Dump input stream to a file in dir /tmp, for debugging purposes
 	-l TUSER	Automatic login as TUSER
 	-p TPASS	TUSER password
 	-s	silent run, don't write output to /dev/stdout" >&2
@@ -68,7 +70,7 @@ _kbd() {
 	local a
 	while kill -0 ${pid_comms} 2>/dev/null; do
 		if IFS= read -s -u0 -d $'\0' -n 1 -t 1 a && \
-		[ ! -e "${KBDDIS}" ]; then
+		! kill -0 ${KBDDIS} 2>/dev/null; then
 			printf '%s' "${a}" 1>&${fdh}
 		fi
 	done
@@ -87,7 +89,8 @@ timeout_long=600
 buffer=""
 
 expect() {
-	expect=${1}
+	expect_1=${1}
+	expect="$(printf ${1})"
 	send=${2}
 }
 
@@ -136,7 +139,11 @@ _read_cmd() {
 			timeout=${timeout_short}
 		else
 			timeout=${timeout_long}
-			[ ! -e "${KBDDIS}" ] || rm -f "${KBDDIS}"
+			if [ -n "${KBDDIS}" ]; then
+				kill -TERM ${KBDDIS} 2>/dev/null
+				wait ${KBDDIS} >/dev/null 2>&1
+				KBDDIS=""
+			fi
 		fi
 		if IFS= read -u${fdh} -d $'\0' -n 1 -t ${timeout} a; then
 			buffer+="${a}"
@@ -150,12 +157,15 @@ _read_cmd() {
 				esac
 			fi
 			if [ "$a" = $'\n' ]; then
+				[ -z "${DUMP}" ] || \
+					printf '%s' "${buffer}" >> "${DUMP}"
 				buffer=""
 			fi
 		else
 			printf '\n' >&2
 			if [ -n "${expect}" ]; then
-				printf 'Warning: Timeout while expecting "%s"\n' "${expect}" >&2
+				printf 'Warning: Timeout while expecting "%s"\n' \
+					"${expect_1}" >&2
 				expect=""
 				if [  -z "${BATCH}" ]; then
 					printf 'Switching to interactive mode.\n' >&2
@@ -164,16 +174,23 @@ _read_cmd() {
 				fi
 			fi
 			[ -z "${BATCH}" ] || \
-				printf 'Batch mode, ending session.\n' >&2
+				printf 'Warning: Timeout while in Batch mode, ending session.\n' >&2
 			break
 		fi
 	done
+
+	if [ -n "${KBDDIS}" ]; then
+		kill -TERM ${KBDDIS} 2>/dev/null
+		wait ${KBDDIS} >/dev/null 2>&1
+		KBDDIS=""
+	fi
 
 	printf '\n'
 }
 
 AUTOLOGIN=""
 BATCH=""
+DUMP=""
 KBDDIS=""
 SCRIPT=""
 SCRIPT_STDIN=""
@@ -182,16 +199,20 @@ TPASS=""
 SILENT=""
 
 _exit() {
-	[ ! -e "${KBDDIS}" ] || rm -f "${KBDDIS}"
+	if [ -n "${KBDDIS}" ]; then
+		kill -TERM ${KBDDIS} 2>/dev/null
+		wait ${KBDDIS} >/dev/null 2>&1
+	fi
 	[ -z "${SCRIPT_STDIN}" ] || rm -f "${SCRIPT}"
 }
 trap _exit EXIT
 
-while getopts ":abc:l:p:s" OPTION; do
+while getopts ":abc:dl:p:s" OPTION; do
 	case $OPTION in
 		a) AUTOLOGIN="y";;
 		b) BATCH="y";;
 		c) SCRIPT="${OPTARG}";;
+		d) DUMP="y";;
 		l) TUSER="${OPTARG}";;
 		p) TPASS="${OPTARG}";;
 		s) SILENT="y";;
@@ -228,8 +249,8 @@ if [ -t 0 ]; then
 else
 	if [ "${SCRIPT}" = "-" -o -z "${SCRIPT}" ]; then
 		printf 'Warning: Reading script from stdin.\n' >&2
-		SCRIPT="$(mktemp /tmp/telnet-sh-XXXXXX.txt)"
-		cat -s - > "${SCRIPT}" <&0
+		SCRIPT="$(mktemp /tmp/telnet-sh-XXXXXX)"
+		cat - > "${SCRIPT}" <&0
 		SCRIPT_STDIN="y"
 	fi
 	if [ -z "${BATCH}" ]; then
@@ -238,7 +259,7 @@ else
 	fi
 fi
 
-if [ ! -s "${SCRIPT}" ]; then
+if [ -n "${SCRIPT}" -a ! -s "${SCRIPT}" ]; then
 	printf 'Error: Invalid script file %s.\n' "${SCRIPT_STDIN:-"${SCRIPT}"}" >&2
 	exit 1
 fi
@@ -253,6 +274,11 @@ if [ ! -s "${SCRIPT}" -a -n "${BATCH}" ]; then
 	exit 1
 fi
 
+if [ -n "${DUMP}" ]; then
+	DUMP="$(mktemp /tmp/telnet-sh-dump-XXXXXX)"
+	printf 'Warning: Dumping input stream to file "%s".\n' "${DUMP}" >&2
+fi
+
 printf 'Connecting to host %s in port %s.\n' "${host}" "${port}" >&2
 if ! exec {fdh}<>"/dev/tcp/$host/$port"; then
 	printf 'Error: No success on connection.\n' >&2
@@ -260,7 +286,11 @@ if ! exec {fdh}<>"/dev/tcp/$host/$port"; then
 fi
 
 if [ -t 0 ]; then
-	KBDDIS="$(mktemp /var/lock/telnet-sh-XXXXXX)"
+	( while :; do
+		sleep 3 &
+		wait "${!}"
+	done >/dev/null 2>&1 ) &
+	KBDDIS="${!}"
 fi
 
 _comms &
@@ -270,5 +300,5 @@ if [ -t 0 ]; then
 	_kbd <&0 &
 fi
 
-wait > /dev/null 2>&1
+wait >/dev/null 2>&1
 :

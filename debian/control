@@ -8,5 +8,6 @@ Homepage: http://livenet.ddns.net/
 
 Package: telnet-sh
 Architecture: all
+Provides: telnet-client
 Depends: ${misc:Depends}, bash,
-Description: Telnet client that provides automatization.
+Description: Telnet client with built-in automatization.

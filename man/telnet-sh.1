@@ -33,6 +33,9 @@ automatic switch to batch mode when stdin is not a terminal
 Execute commands from this file before going interactive,
 reads script from stdin when filename is '-' or stdin is not a terminal
 .TP
+\fB\-d\fR
+Dump input stream to a temporary file
+.TP
 \fB\-l\fR TUSER
 Automatic login as TUSER
 .TP
@@ -48,6 +51,7 @@ An script of commands is a text file that contains a command in every line.
 May use environment variables,
 TUSER and TPASS have been set by application options.
 Comment lines using a starting # character.
+For string formats see documentation on Bash printf command.
 .PP
 .TP
 \fBsilent/nosilent\fR
