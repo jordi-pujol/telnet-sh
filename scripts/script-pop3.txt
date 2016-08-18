@@ -9,8 +9,8 @@
 
 # expect command syntax:
 #    expect "string waiting for" "answer"
-expect '+OK POP3 PROXY server ready\n' "user $TUSER\n"
-expect '+OK Password required\n' "pass $TPASS\n"
+expect '+OK POP3 PROXY server ready\r\n' "user $TUSER\r\n"
+expect '+OK Password required\r\n' "pass $TPASS\r\n"
 
 # "interactive" stops the script,
 # enables terminal keyboard if batch mode is not enabled.

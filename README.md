@@ -46,8 +46,8 @@ telnet -l tuser -p tpass  \ <br>
 Sample script to init a pop3 session and after give control to the 
 user:
 
-expect '+OK POP3 PROXY server ready\n' "user $TUSER\n"<br>
-expect '+OK Password required\n' "pass $TPASS\n"<br>
+expect '+OK POP3 PROXY server ready\r\n' "user $TUSER\r\n"<br>
+expect '+OK Password required\r\n' "pass $TPASS\r\n"<br>
 interactive
 
 *****************************************************
