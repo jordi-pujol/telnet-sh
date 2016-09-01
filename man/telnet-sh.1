@@ -1,7 +1,7 @@
 .TH TELNET-SH "1" "August 2016" "Live never ending Tale" "Utilities"
 .SH NAME
 .B telnet-sh
-\- client for telnet that provides automatization
+\- client for telnet with built-in automatization
 .SH SYNOPSIS
 .B telnet-sh
 [\fI\,OPTION\/\fR]... \fI\,HOST \/\fR[\fI\,PORT/SERVICE\/\fR]
@@ -10,15 +10,14 @@
 The telnet utility communicates with another host using the
 TELNET protocol.
 .PP
-This is a tiny implementation of telnet written in Bash,
-that provides automatization via scripts of commands,
-it's suitable to perform a communication session
-without the user intervention.
-This utility has a limited set of commands,
-some protocol commands, like OPEN, are not implemented;
-so the host name must be specified in the command line.
-Scripts  may use environment variables.
-Variables TUSER and TPASS are set by the corresponding options.
+This is a tiny implementation of telnet written in Bash; provides 
+automatization via scripts of commands, it's suitable to perform a 
+communication session without the user intervention.
+This utility has a limited set of commands, some protocol commands, 
+like OPEN, are not implemented; so the host name must be specified in 
+the command line.
+Scripts  may use environment variables, for example the variables TUSER 
+and TPASS are set by the corresponding options.
 .SH OPTIONS
 .PP
 .TP
@@ -30,39 +29,62 @@ Batch mode, script required, will not watch for input from terminal,
 automatic switch to batch mode when stdin is not a terminal
 .TP
 \fB\-c\fR script
-Execute commands from this file before going interactive,
+Execute commands from this script file before going interactive,
 reads script from stdin when filename is '-' or stdin is not a terminal
 .TP
 \fB\-d\fR
-Dump input stream to a temporary file
+Dump received server stream to a temporary file.
+Every newline control code will break lines.
 .TP
 \fB\-l\fR TUSER
-Automatic login as TUSER
+Automatic login as TUSER. Sets the shell variable TUSER.
 .TP
 \fB\-p\fR TPASS
-TUSER password
+TUSER password. Sets the shell variable TPASS.
 .TP
 \fB\-s\fR
 silent run, don't write output to /dev/stdout
 .PP
 .SH SCRIPT COMMANDS
 .PP
-An script of commands is a text file that contains a command in every line.
-May use environment variables,
+An script of commands is a text file that contains a command in every 
+line. May use environment variables,
 TUSER and TPASS have been set by application options.
-Comment lines using a starting # character.
-For string formats see documentation on Bash printf command.
+Comment lines start by the # character.
 .PP
 .TP
 \fBsilent/nosilent\fR
 command to disable of enable writing to stdout
 .TP
-\fBexpect\fR "string waiting for" "answer"
-expect an string and send the answer
+\fBexpect\fR "string waiting for-1" "answer-1"...["string waiting for-N" "answer-N"]
+expects a list of strings and sends the corresponding answer. Expected 
+strings are regular expressions to be used in grep; control codes in 
+expected strings are in hexadecimal form %XX. Answers will by written 
+by a printf command, control codes must be codified accordingly; for 
+answer's format see documentation on Bash printf command.
 .TP
 \fBinteractive\fR
 stops the script,
-enables terminal keyboard if batch mode is not enabled.
+enables terminal keyboard or exits when batch mode is enabled.
+.PP
+.SH INTERACTIVE COMMANDS
+.PP
+In interactive mode the user can enter one command pressing the escape 
+key '^[' (X1D). Interactive commands also may be used in scripts, one 
+for line.
+.PP
+.TP
+\fBcrlf/nocrlf\fR
+when the user presses a carriage return, telnet-sh will send CR-LF 
+instead.
+.TP
+\fBecho/noecho\fR
+The characters sent to the server will also be written on the local 
+terminal.
+.TP
+\fBbackspace/nobackspace\fR
+Pressing the delete key (x7F) will send a backspace code (x08) to the server.
+.PP
 .SH AUTHOR
 Written by Jordi Pujol Palomer.
 .SH "REPORTING BUGS"

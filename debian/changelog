@@ -1,3 +1,17 @@
+telnet-sh (0.4) unstable; urgency=medium
+
+  * enable and disable CRLF via script,
+    will send CR-LF to the server instead of LF only.
+  * new commands for terminal control using an escape key $1D ^[
+  * expect: allow multiple expected strings with their corresponding answers.
+    - expected strings format is a grep regexp, control codes are
+      in hexadecimal form %XX
+    - format for answer strings is Bash printf compatible.
+  * man page has been updated according to the modifications.
+  * new example to check mail addresses validity on a mail server.
+
+ -- Jordi Pujol Palomer <jordipujolp@gmail.com>  Sat, 20 Aug 2016 10:14:41 +0200
+
 telnet-sh (0.3) unstable; urgency=medium
 
   * option -d

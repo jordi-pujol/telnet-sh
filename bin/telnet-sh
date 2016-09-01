@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#  Telnet client that provides automatization.
-#  $Revision: 0.3 $
+#  Telnet client with built-in automatization.
+#  $Revision: 0.4 $
 #
 #  Copyright (C) 2014-2016 Jordi Pujol Palomer <jordipujolp AT gmail DOT com>
 #
@@ -25,20 +25,19 @@
 
 # Requires:
 # - bash, enabled for tcp communications
-# Other GNU utilities, even reduced versions from busybox will work
-# - awk
-# - cat
-# - sed
-# - tr
+# - Some other utilities, even reduced versions from busybox will work
+#   awk, cat, mktemp, sed, tr, wc
+
+set -o errexit -o noglob -o nounset
 
 #DEBUG="y"
-if [ -n "${DEBUG}" ]; then
+if [ -n "${DEBUG:-}" ]; then
 	export PS4='+\t ${LINENO}:${FUNCNAME:+"${FUNCNAME}:"} '
 	exec {BASH_XTRACEFD}> "$(mktemp /tmp/telnet-sh-XXXXXX)"
-	set -x
+	set -o xtrace
 fi
 
-version="0.3"
+version="0.4"
 
 usage() {
 	echo "telnet-sh v${version}.
@@ -63,15 +62,66 @@ Variables TUSER and TPASS are set by the corresponding options.
 }
 
 _printf_printable() {
-	printf '%s' "${1}" | tr -cd '[ -~]\n\r\t\b\033'
+	printf '%s' "${@}" | tr -cd '[ -~]\n\r\t\b\033'
 }
 
 _kbd() {
-	local a
+	local a buffer
+	buffer=""
 	while kill -0 ${pid_comms} 2>/dev/null; do
-		if IFS= read -s -u0 -d $'\0' -n 1 -t 1 a && \
-		! kill -0 ${KBDDIS} 2>/dev/null; then
-			printf '%s' "${a}" 1>&${fdh}
+		IFS= read -s -u0 -d $'\0' -n 1 -t 1 a || \
+			continue
+		if [ -z "${buffer}" -a "${a}" = "${ESC_CMD}" ]; then
+			buffer="${a}"
+			printf '\n%s' "CMD>" >&2
+			continue
+		fi
+		if [ "${buffer:0:1}" = "${ESC_CMD}" ]; then
+			_printf_printable "${a}" >&2
+			if [ "${a}" = $'\n' ]; then
+				case "${buffer:1}" in
+				crlf) CRLF=$'\r\n'
+					printf 'CMD: enabling conversion of CR to CR/LF.\n' >&2
+					;;
+				nocrlf) CRLF=""
+					printf 'CMD: disabling CR conversion.\n' >&2
+					;;
+				echo) ECHO="y"
+					printf 'CMD: enabling local echo.\n' >&2
+					kill -s USR1 ${pid_comms}
+					;;
+				noecho) ECHO=""
+					printf 'CMD: disabling local echo.\n' >&2
+					kill -s USR2 ${pid_comms}
+					;;
+				backspace) BACKSPACE=$'\x08'
+					printf 'CMD: enabling conversion of backspace to CTRL-H.\n' >&2
+					;;
+				nobackspace) BACKSPACE=""
+					printf 'CMD: disabling backspace conversion.\n' >&2
+					;;
+				*) printf 'CMD: error, invalid command "%s".\n' "${buffer}" >&2
+					;;
+				esac
+				kill -s HUP ${pid_comms}
+				buffer=""
+			else
+				buffer+="${a}"
+			fi
+			continue
+		fi
+		[ "${a}" = $'\n' ] && buffer="" || buffer+="${a}"
+		if ! kill -0 ${KBDDIS} 2>/dev/null; then
+			case "${a}" in
+			$'\n')
+				[ -z "${CRLF}" ] || a="${CRLF}"
+				;;
+			$'\b')
+				[ -z "${BACKSPACE}" ] || a="${BACKSPACE}"
+				;;
+			esac
+			printf '%s' "${a}" >&${fdh}
+			[ -z "${ECHO}" ] || printf '%s' "${a}"
 		fi
 	done
 }
@@ -79,46 +129,42 @@ _kbd() {
 _comms() {
 	local a
 	local line lines
-	local timeout expect send
-	local timeout_short timeout_long buffer
+	local timeout timeout_short timeout_long buffer bufferc
+	local exp_ans
 
-expect=""
+exp_ans=()
 line=0
 timeout_short=5
 timeout_long=600
 buffer=""
-
-expect() {
-	expect_1=${1}
-	expect="$(printf ${1})"
-	send=${2}
-}
+bufferc=""
 
 _read_cmd() {
 	local cmd
-	expect=""; send=""
+	exp_ans=()
 	while [ ${line} -lt ${lines} ]; do
 		line=$((${line}+1))
-		cmd="$(awk -v line=${line} 'NR == line && $1 {print $1; rc=-1; exit}
-		END{exit rc+1}' "${SCRIPT}")" || continue
-		case "${cmd}" in
-		expect) eval $(sed -ne "${line}p" "${SCRIPT}")
-			return 0
+		cmd=( $(sed -ne "${line}p" < "${SCRIPT}") )
+		[ -n "${cmd[0]:-}" ] || continue
+		case "${cmd[0]}" in
+		expect)
+			eval exp_ans=( $(sed -nre "${line}{\|^[[:blank:]]*expect[[:blank:]]+| s|||;p}" < "${SCRIPT}") )
+			[ -z "${exp_ans[0]:-}" ] || return 0
 			;;
 		silent) SILENT="y";;
 		nosilent) SILENT="";;
 		interactive)
 			if [ -z "${BATCH}" ]; then
-				printf '\nscript: switching to interactive mode.\n' >&2
+				printf '\nscript exit, switching to interactive mode.\n' >&2
 			else
-				printf '\nscript: stopped.\n' >&2
+				printf '\nscript stopped.\n' >&2
 			fi
 			_printf_printable "${buffer}"
 			return 0
 			;;
-		\#*) :;;
+		conf|crlf|nocrlf|echo|noecho|backspace|nobackspace|\#*) :;;
 		*)
-			printf '\nscript error: invalid command "%s".\n' "${cmd}" >&2
+			printf '\nscript error: invalid command "%s".\n' "${cmd[0]}" >&2
 			[  -n "${BATCH}" ] || \
 				printf 'Switching to interactive mode.\n' >&2
 			_printf_printable "${buffer}"
@@ -129,44 +175,76 @@ _read_cmd() {
 	:
 }
 
+_reload() {
+	[ -n "${SILENT}" ] || _printf_printable "${buffer}"
+}
+
+_echo() {
+	ECHO="y"
+}
+
+_noecho() {
+	ECHO=""
+}
+
+	trap _reload HUP
+	trap _echo USR1
+	trap _noecho USR2
+
 	if [ -n "${SCRIPT}" ]; then
-		lines="$(wc -l "${SCRIPT}" | awk '{print $1}')"
+		lines="$(wc -l < "${SCRIPT}")"
 		_read_cmd
 	fi
 
 	while :; do
-		if [ -n "${expect}" -o -n "${BATCH}" ]; then
+		if [ -n "${exp_ans[0]:-}" -o -n "${BATCH}" ]; then
 			timeout=${timeout_short}
 		else
 			timeout=${timeout_long}
 			if [ -n "${KBDDIS}" ]; then
-				kill -TERM ${KBDDIS} 2>/dev/null
-				wait ${KBDDIS} >/dev/null 2>&1
+				kill -s TERM ${KBDDIS} 2>/dev/null
+				wait ${KBDDIS} >/dev/null 2>&1 || :
 				KBDDIS=""
 			fi
 		fi
 		if IFS= read -u${fdh} -d $'\0' -n 1 -t ${timeout} a; then
 			buffer+="${a}"
+			c="$(case "${a}" in
+				[[:print:]])
+					printf '%s' "${a}";;
+				*)
+					printf '%%%02X' "'${a}";;
+				esac)"
+			bufferc+="${c}"
+			[ -z "${DUMP}" ] || printf '%s' "${c}" >> "${DUMP}"
 			[ -n "${SILENT}" ] || _printf_printable "${a}"
-			if [ -n "${expect}" ]; then
-				case "${buffer}" in
-				*"${expect}")
-					[ -z "${send}" ] || printf "${send}" 1>&${fdh}
-					_read_cmd
-					;;
-				esac
+			if [ -n "${exp_ans[0]:-}" ]; then
+				set -- "${exp_ans[@]}"
+				while [ -n "${1:-}" ]; do
+					if printf '%s' "${bufferc}" | grep -qse "${1}"; then
+						if [ -n "${2}" ]; then
+							printf "${2}" >&${fdh}
+							[ -z "${ECHO}" ] || printf "${2}"
+						fi
+						_read_cmd
+						break
+					fi
+					shift
+					test -n "${1+"isset"}" || break
+					shift
+				done
 			fi
-			if [ "$a" = $'\n' ]; then
-				[ -z "${DUMP}" ] || \
-					printf '%s' "${buffer}" >> "${DUMP}"
+			if [ "${a}" = $'\n' ]; then
 				buffer=""
+				bufferc=""
+				[ -z "${DUMP}" ] || printf '\n' >> "${DUMP}"
 			fi
 		else
 			printf '\n' >&2
-			if [ -n "${expect}" ]; then
+			if [ -n "${exp_ans[0]:-}" ]; then
 				printf 'Warning: Timeout while expecting "%s"\n' \
-					"${expect_1}" >&2
-				expect=""
+					"${exp_ans[0]}" >&2
+				exp_ans=()
 				if [  -z "${BATCH}" ]; then
 					printf 'Switching to interactive mode.\n' >&2
 					_printf_printable "${buffer}"
@@ -180,12 +258,40 @@ _read_cmd() {
 	done
 
 	if [ -n "${KBDDIS}" ]; then
-		kill -TERM ${KBDDIS} 2>/dev/null
-		wait ${KBDDIS} >/dev/null 2>&1
+		kill -s TERM ${KBDDIS} 2>/dev/null
+		wait ${KBDDIS} >/dev/null 2>&1 || :
 		KBDDIS=""
 	fi
 
 	printf '\n'
+}
+
+_initial_config() {
+	local line=0 cmd rest
+	[ -s "${SCRIPT}" ] || return 0
+	while read cmd rest; do
+		line=$((${line}+1))
+		case "${cmd}" in
+		conf) eval $(sed -rne "${line} {\|^[[:blank:]]*conf[[:blank:]]+| s|||;p}" < "${SCRIPT}")
+ ;;
+		crlf) CRLF=$'\r\n' ;;
+		nocrlf) CRLF="" ;;
+		echo) ECHO="y" ;;
+		noecho) ECHO="" ;;
+		backspace) BACKSPACE=$'\x08' ;;
+		nobackspace) BACKSPACE="" ;;
+		esac
+	done < "${SCRIPT}"
+	:
+}
+
+_exit() {
+	trap - EXIT
+	if [ -n "${KBDDIS}" ]; then
+		kill -s TERM ${KBDDIS} 2>/dev/null
+		wait ${KBDDIS} >/dev/null 2>&1 || :
+	fi
+	[ -z "${SCRIPT_STDIN}" ] || rm -f "${SCRIPT}"
 }
 
 AUTOLOGIN=""
@@ -197,15 +303,18 @@ SCRIPT_STDIN=""
 TUSER=""
 TPASS=""
 SILENT=""
+BACKSPACE=""
+CRLF=""
+ECHO=""
+ESC_CMD=$'\x1D'
 
-_exit() {
-	if [ -n "${KBDDIS}" ]; then
-		kill -TERM ${KBDDIS} 2>/dev/null
-		wait ${KBDDIS} >/dev/null 2>&1
-	fi
-	[ -z "${SCRIPT_STDIN}" ] || rm -f "${SCRIPT}"
-}
 trap _exit EXIT
+
+[ ! -s /etc/telnet-sh.conf ] || \
+	. /etc/telnet-sh.conf
+
+[ ! -s ~/.config/telnet-sh/telnet-sh.conf ] || \
+	. ~/.config/telnet-sh/telnet-sh.conf
 
 while getopts ":abc:dl:p:s" OPTION; do
 	case $OPTION in
@@ -229,7 +338,7 @@ port=""
 if [ -n "${1:-}" ]; then
 	port="$(awk -v service="${1}" '$1 == service && \
 	$2 ~ "/tcp" {print service; rc=-1; exit}
-	END{exit rc+1}' /etc/services)" || \
+	END{exit rc+1}' < /etc/services)" || \
 		port="$(awk -v port="${1}" \
 			'BEGIN{if (port ~ "^[0-9]+$") print port+0}')"
 else
@@ -279,6 +388,8 @@ if [ -n "${DUMP}" ]; then
 	printf 'Warning: Dumping input stream to file "%s".\n' "${DUMP}" >&2
 fi
 
+_initial_config
+
 printf 'Connecting to host %s in port %s.\n' "${host}" "${port}" >&2
 if ! exec {fdh}<>"/dev/tcp/$host/$port"; then
 	printf 'Error: No success on connection.\n' >&2
@@ -288,7 +399,7 @@ fi
 if [ -t 0 ]; then
 	( while :; do
 		sleep 3 &
-		wait "${!}"
+		wait "${!}" || :
 	done >/dev/null 2>&1 ) &
 	KBDDIS="${!}"
 fi
@@ -300,5 +411,5 @@ if [ -t 0 ]; then
 	_kbd <&0 &
 fi
 
-wait >/dev/null 2>&1
+wait >/dev/null 2>&1 || :
 :

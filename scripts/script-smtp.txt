@@ -1,0 +1,29 @@
+# telnet-sh - script of commands.
+#
+# may use environment variables;
+# TUSER and TPASS have been set by application options.
+
+# check if an email address exists on a smtp server
+#
+# dig gmail.com MX
+#
+# telnet-sh -b -c scripts/script-smtp.txt alt4.gmail-smtp-in.l.google.com smtp
+
+# client initial configuration 
+#conf BACKSPACE=$'\x08'
+#conf CRLF=$'\r\n'
+#conf ECHO="y"
+echo
+#conf ESC_CMD=$'\x1D'
+
+# command to not write to stdout
+#silent
+#nosilent
+
+# expect command syntax:
+#    expect "string waiting for" "answer"
+expect '220 mx.google.com ESMTP.*gsmtp%0D%0A' 'HELO inter.net\n'
+expect '250 mx.google.com at your service%0D%0A' 'mail from:<someuser@inter.net>\n'
+expect '250.*OK .* - gsmtp%0D%0A' 'rcpt to:<someuser@gmail.com>\n'
+expect '250.*OK .* - gsmtp%0D%0A' 'rcpt to:<someuser2345@gmail.com>\n'
+expect '250.*OK .* - gsmtp%0D%0A' 'quit\n' '550.*gsmtp%0D%0A' 'quit\n'

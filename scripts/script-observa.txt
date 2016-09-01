@@ -3,6 +3,14 @@
 # may use environment variables;
 # TUSER and TPASS have been set by application options.
 
+# telnet-sh -l tuser -p tpass -c scripts/script-observa.txt 192.168.1.1
+
+# client initial configuration 
+conf BACKSPACE=$'\x08'
+#conf CRLF=$'\r\n'
+#conf ECHO="y"
+#conf ESC_CMD=$'\x1D'
+
 # command to not write to stdout
 #silent
 #nosilent

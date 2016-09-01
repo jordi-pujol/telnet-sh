@@ -3,15 +3,23 @@
 # may use environment variables;
 # TUSER and TPASS have been set by application options.
 
+# telnet-sh -l tuser -p tpass -c scripts/script-pop3.txt pop3.telefonica.net pop3
+
+# client initial configuration 
+#conf BACKSPACE=$'\x08'
+conf CRLF=$'\r\n'
+#conf ECHO="y"
+#conf ESC_CMD=$'\x1D'
+
 # command to not write to stdout
 #silent
 #nosilent
 
 # expect command syntax:
 #    expect "string waiting for" "answer"
-expect '+OK POP3 PROXY server ready\r\n' "user $TUSER\r\n"
-expect '+OK Password required\r\n' "pass $TPASS\r\n"
+expect '+OK POP3 PROXY server ready%0D%0A' "user $TUSER\n"
+expect '+OK Password required%0D%0A' "pass $TPASS\n"
 
 # "interactive" stops the script,
-# enables terminal keyboard if batch mode is not enabled.
+# enables terminal keyboard or ends when batch mode is enabled.
 interactive
