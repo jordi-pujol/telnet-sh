@@ -71,9 +71,9 @@ alt4.gmail-smtp-in.l.google.com smtp
 echo<br>
 expect '220 mx.google.com ESMTP.*gsmtp%0D%0A' 'HELO inter.net\n'<br>
 expect '250 mx.google.com at your service%0D%0A' 'mail from:<someuser@inter.net>\n'<br>
-expect '250.*OK .* - gsmtp%0D%0A' 'rcpt to:<someuser@gmail.com>\n'<br>
-expect '250.*OK .* - gsmtp%0D%0A' 'rcpt to:<someuser2345@gmail.com>\n'<br>
-expect '250.*OK .* - gsmtp%0D%0A' 'quit\n' '550.*gsmtp%0D%0A' 'quit\n'<br>
+expect '250.\*OK .\* - gsmtp%0D%0A' 'rcpt to:<someuser@gmail.com>\n'<br>
+expect '250.\*OK .\* - gsmtp%0D%0A' 'rcpt to:<someuser2345@gmail.com>\n'<br>
+expect '250.\*OK .\* - gsmtp%0D%0A' 'quit\n' '550.*gsmtp%0D%0A' 'quit\n'<br>
 #<br>
 
 *****************************************************
