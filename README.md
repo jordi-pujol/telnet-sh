@@ -1,4 +1,4 @@
-This is the telnet-sh, a telnet client with built-in automatization, 
+This is telnet-sh, a telnet client with built-in automatization, 
 
 The original source can always be found at:<br>
     https://github.com/jordi-pujol/telnet-sh
