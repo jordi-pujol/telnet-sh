@@ -71,6 +71,7 @@ _kbd() {
 	while kill -0 ${pid_comms} 2>/dev/null; do
 		IFS= read -s -u0 -d $'\0' -n 1 -t 1 a || \
 			continue
+		! kill -0 ${KBDDIS} 2>/dev/null || continue
 		if [ -z "${buffer}" -a "${a}" = "${ESC_CMD}" ]; then
 			buffer="${a}"
 			printf '\n%s' "CMD>" >&2
@@ -111,18 +112,16 @@ _kbd() {
 			continue
 		fi
 		[ "${a}" = $'\n' ] && buffer="" || buffer+="${a}"
-		if ! kill -0 ${KBDDIS} 2>/dev/null; then
-			case "${a}" in
-			$'\n')
-				[ -z "${CRLF}" ] || a="${CRLF}"
-				;;
-			$'\b')
-				[ -z "${BACKSPACE}" ] || a="${BACKSPACE}"
-				;;
-			esac
-			printf '%s' "${a}" >&${fdh}
-			[ -z "${ECHO}" ] || printf '%s' "${a}"
-		fi
+		case "${a}" in
+		$'\n')
+			[ -z "${CRLF}" ] || a="${CRLF}"
+			;;
+		$'\b')
+			[ -z "${BACKSPACE}" ] || a="${BACKSPACE}"
+			;;
+		esac
+		printf '%s' "${a}" >&${fdh}
+		[ -z "${ECHO}" ] || printf '%s' "${a}"
 	done
 }
 
@@ -144,11 +143,11 @@ _read_cmd() {
 	exp_ans=()
 	while [ ${line} -lt ${lines} ]; do
 		line=$((${line}+1))
-		cmd=( $(sed -ne "${line}p" < "${SCRIPT}") )
+		cmd=( $(sed -ne "${line}{p;q}" < "${SCRIPT}") )
 		[ -n "${cmd[0]:-}" ] || continue
 		case "${cmd[0]}" in
 		expect)
-			eval exp_ans=( $(sed -nre "${line}{\|^[[:blank:]]*expect[[:blank:]]+| s|||;p}" < "${SCRIPT}") )
+			eval exp_ans=( $(sed -nre "${line}{\|^[[:blank:]]*expect[[:blank:]]+| s|||;p;q}" < "${SCRIPT}") )
 			[ -z "${exp_ans[0]:-}" ] || return 0
 			;;
 		silent) SILENT="y";;
@@ -209,7 +208,7 @@ _noecho() {
 		fi
 		if IFS= read -u${fdh} -d $'\0' -n 1 -t ${timeout} a; then
 			buffer+="${a}"
-			c="$(case "${a}" in
+			c="$(case "${a}" in # ((
 				[[:print:]])
 					printf '%s' "${a}";;
 				*)
@@ -272,7 +271,7 @@ _initial_config() {
 	while read cmd rest; do
 		line=$((${line}+1))
 		case "${cmd}" in
-		conf) eval $(sed -rne "${line} {\|^[[:blank:]]*conf[[:blank:]]+| s|||;p}" < "${SCRIPT}")
+		conf) eval $(sed -rne "${line} {\|^[[:blank:]]*conf[[:blank:]]+| s|||;p;q}" < "${SCRIPT}")
  ;;
 		crlf) CRLF=$'\r\n' ;;
 		nocrlf) CRLF="" ;;
